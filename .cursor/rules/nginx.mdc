@@ -1,0 +1,353 @@
+---
+description: Comprehensive troubleshooting guide for OSS NGINX Ingress Controller
+globs: ["**/*.yaml", "**/*.yml", "**/*.go", "**/*.md"]
+alwaysApply: false
+---
+# NGINX OSS Ingress Controller - Troubleshooting & Migration Guide
+
+## Overview
+This cursor rule provides comprehensive guidance for troubleshooting and migrating to NGINX OSS (Open Source Software) Ingress Controller deployed with Terraform Helm release in production environments.
+
+## Key Architecture Components
+
+### Core Components
+- **Ingress Controller**: Main controller process in `cmd/nginx-ingress/main.go`
+- **NGINX Manager**: Handles NGINX configuration and reloads in `internal/nginx/`
+- **Configuration System**: Parses annotations and ConfigMaps in `internal/configs/`
+- **Kubernetes Integration**: Watches and processes K8s resources in `internal/k8s/`
+- **Helm Chart**: Deployment templates in `charts/nginx-ingress/`
+
+### Version Information
+- Current version: 5.2.0 (from `.github/data/version.txt`)
+- Helm Chart version: 2.3.0
+- NGINX OSS version: 1.27 (from `Makefile`)
+- **No license management required** (OSS is free)
+- **No App Protect WAF support** (Plus-only feature)
+
+## Migration from NGINX Plus to OSS
+
+### Key Differences
+
+#### Features Available in OSS
+- **Basic load balancing**: Round-robin, least_conn, ip_hash
+- **SSL/TLS termination**: Standard TLS support
+- **Rate limiting**: Basic rate limiting capabilities
+- **Custom annotations**: Most standard annotations work
+- **VirtualServer/TransportServer**: Full support
+- **Health checks**: Passive health checks only
+
+#### Features NOT Available in OSS
+- **Active health checks**: Only available in NGINX Plus
+- **Session persistence**: Sticky cookies require Plus
+- **Slow start**: Plus-only feature
+- **Queue management**: Plus-only feature
+- **NTLM authentication**: Plus-only feature
+- **App Protect WAF**: Plus-only feature
+- **Management API**: Plus-only feature
+- **Real-time metrics API**: Plus-only feature
+
+### Migration Checklist
+
+#### 1. Helm Chart Configuration Changes
+```yaml
+controller:
+  # Set to false for OSS
+  nginxplus: false
+  
+  # Remove Plus-specific configuration
+  mgmt:
+    # Remove license management
+    # licenseTokenSecretName: "license-token"
+    
+  # Remove App Protect configuration
+  appprotect:
+    enable: false
+    v5: false
+```
+
+#### 2. Remove Plus-Specific Resources
+- **License secrets**: Remove `nginx.com/license` type secrets
+- **App Protect policies**: Remove all App Protect resources
+- **Management API calls**: Remove any API calls to `/nginx-api/`
+
+#### 3. Update Annotations
+- **Remove Plus-specific annotations**:
+  - `nginx.com/sticky-cookie-services` (requires Plus)
+  - `nginx.com/health-checks` (active health checks require Plus)
+  - `nginx.com/health-checks-mandatory` (Plus-only)
+
+#### 4. Update Custom Resources
+- **VirtualServer**: Remove health checks, slow start, session cookies
+- **TransportServer**: Remove Plus-specific upstream configurations
+- **Policy**: Remove App Protect policies
+
+## Common Troubleshooting Areas
+
+### 1. Deployment Issues
+
+#### Helm Chart Configuration
+- **Location**: `charts/nginx-ingress/values.yaml`
+- **Key settings**: `controller.nginxplus: false`
+- **No license management**: Remove all license-related configuration
+- **Resource limits**: CPU/memory requests and limits
+
+#### Terraform Integration
+- **Helm provider configuration**: Ensure correct repository and version
+- **Values file**: Customize `values.yaml` for OSS needs
+- **Namespace**: Default is `nginx-ingress`
+
+#### Common Deployment Problems
+```bash
+# Check pod status
+kubectl get pods -n nginx-ingress
+
+# Check events
+kubectl describe pod <pod-name> -n nginx-ingress
+
+# Check logs
+kubectl logs <pod-name> -n nginx-ingress
+
+# Check NGINX configuration
+kubectl exec <pod-name> -n nginx-ingress -- nginx -t
+```
+
+### 2. Configuration Issues
+
+#### Annotations Reference (OSS-Compatible)
+- **Location**: `internal/configs/annotations.go`
+- **Key annotations**:
+  - `nginx.org/proxy-connect-timeout`
+  - `nginx.org/proxy-read-timeout`
+  - `nginx.org/client-max-body-size`
+  - `nginx.org/lb-method` (limited to: round_robin, least_conn, ip_hash)
+  - `nginx.org/upstream-zone-size`
+
+#### ConfigMap Configuration
+- **Global settings**: `internal/configs/configmap.go`
+- **Key parameters**:
+  - `keepalive-timeout`
+  - `keepalive-requests`
+  - `access-log-off`
+  - `variables-hash-bucket-size`
+
+#### Custom Resources (OSS Limitations)
+- **VirtualServer**: Advanced routing in `examples/custom-resources/`
+- **TransportServer**: TCP/UDP load balancing
+- **Policy**: Authentication, rate limiting, access control (no App Protect)
+
+### 3. OSS-Specific Features
+
+#### No License Management
+- **No license secrets required**
+- **No license validation**
+- **No usage reporting**
+
+#### Limited Load Balancing
+```nginx
+# Available methods in OSS
+upstream backend {
+    server backend1.example.com;
+    server backend2.example.com;
+    # round_robin (default)
+    # least_conn
+    # ip_hash
+}
+```
+
+#### Passive Health Checks Only
+```nginx
+# OSS supports only passive health checks
+upstream backend {
+    server backend1.example.com max_fails=3 fail_timeout=30s;
+    server backend2.example.com max_fails=3 fail_timeout=30s;
+}
+```
+
+### 4. Monitoring & Observability
+
+#### Metrics
+- **Prometheus**: Built-in metrics endpoint
+- **Custom metrics**: Workqueue metrics, configuration metrics
+- **Grafana dashboard**: `grafana/NGINXPlusICDashboard.json` (may need OSS adjustments)
+
+#### Logging
+- **Access logs**: Configurable format with K8s object variables
+- **Error logs**: Controller and NGINX logs
+- **No App Protect logs**: Feature not available in OSS
+
+#### Health Checks
+- **Readiness probe**: `/nginx-ready`
+- **Liveness probe**: `/nginx-health`
+- **Startup probe**: Configurable startup time
+
+### 5. Network & Security
+
+#### Load Balancer Configuration
+- **Service types**: NodePort, LoadBalancer, ClusterIP
+- **External IPs**: Cloud provider integration
+- **SSL/TLS**: Certificate management and termination
+
+#### Security Features
+- **TLS termination**: Per-hostname certificates
+- **Basic rate limiting**: Available in OSS
+- **Access control**: IP-based access control
+- **No JWT-based rate limiting**: Plus-only feature
+
+### 6. Performance Optimization
+
+#### NGINX Configuration
+- **Worker processes**: Auto-configured based on CPU cores
+- **Connection limits**: Configurable via ConfigMap
+- **Buffer sizes**: Optimized for high throughput
+
+#### Kubernetes Integration
+- **Service discovery**: Automatic endpoint updates
+- **Passive health checks**: Upstream health monitoring
+- **No session persistence**: Requires Plus
+
+## Troubleshooting Commands
+
+### Basic Diagnostics
+```bash
+# Check controller status
+kubectl get pods -n nginx-ingress -o wide
+
+# Check NGINX configuration
+kubectl exec -n nginx-ingress <pod-name> -- nginx -T
+
+# Check NGINX version (should show OSS version)
+kubectl exec -n nginx-ingress <pod-name> -- nginx -v
+
+# No Plus API available in OSS
+# kubectl exec -n nginx-ingress <pod-name> -- curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8081/nginx-api/
+```
+
+### Configuration Validation
+```bash
+# Validate Ingress resources
+kubectl describe ingress <ingress-name>
+
+# Check ConfigMap
+kubectl get configmap -n nginx-ingress
+
+# Validate VirtualServer
+kubectl describe virtualserver <vs-name>
+```
+
+### Log Analysis
+```bash
+# Controller logs
+kubectl logs -n nginx-ingress <pod-name> -c nginx-ingress
+
+# NGINX access logs
+kubectl exec -n nginx-ingress <pod-name> -- tail -f /var/log/nginx/access.log
+
+# No App Protect logs in OSS
+```
+
+## Common Issues & Solutions
+
+### 1. Pod Not Starting
+- **No license issues**: OSS doesn't require license
+- **Resource constraints**: Increase CPU/memory limits
+- **Image pull issues**: Check image repository and credentials
+
+### 2. Configuration Not Applied
+- **Annotation syntax**: Verify annotation format
+- **ConfigMap changes**: Restart controller after ConfigMap changes
+- **Validation errors**: Check controller logs for validation messages
+
+### 3. Traffic Not Routing
+- **Service endpoints**: Verify backend services are healthy
+- **Ingress class**: Ensure correct ingress class annotation
+- **Host headers**: Check DNS resolution and host configuration
+
+### 4. SSL/TLS Issues
+- **Certificate secrets**: Verify TLS secret exists and is valid
+- **Certificate format**: Ensure proper PEM format
+- **SNI configuration**: Check server name indication setup
+
+### 5. Migration Issues
+- **Plus annotations**: Remove all `nginx.com/` annotations
+- **App Protect resources**: Remove all App Protect configurations
+- **Health checks**: Convert to passive health checks only
+
+### 6. Performance Issues
+- **No active health checks**: Use passive health checks
+- **No session persistence**: Implement application-level session management
+- **Limited load balancing**: Use available methods (round_robin, least_conn, ip_hash)
+
+## Documentation References
+
+### Official Documentation
+- **NGINX Ingress Controller**: https://docs.nginx.com/nginx-ingress-controller/
+- **NGINX OSS**: https://nginx.org/en/docs/
+- **Migration Guide**: https://docs.nginx.com/nginx-ingress-controller/intro/nginx-plus/
+
+### Code References
+- **Examples**: `examples/custom-resources/`
+- **Deployment manifests**: `deployments/`
+- **Helm chart**: `charts/nginx-ingress/`
+- **Configuration**: `internal/configs/`
+
+### Community Resources
+- **GitHub Issues**: https://github.com/nginx/kubernetes-ingress/issues
+- **Community Calls**: Microsoft Teams meetings (see README.md)
+- **Stack Overflow**: Tagged with `nginx-ingress-controller`
+
+## Best Practices for OSS
+
+### Production Deployment
+1. **Resource planning**: Allocate sufficient CPU/memory
+2. **High availability**: Deploy multiple replicas
+3. **Monitoring**: Set up Prometheus and Grafana
+4. **Backup**: Regular configuration backups
+5. **Security**: Use RBAC and network policies
+
+### Configuration Management
+1. **Version control**: Track configuration changes
+2. **Testing**: Validate changes in staging
+3. **Rollback**: Maintain previous configurations
+4. **Documentation**: Document custom configurations
+
+### Performance Tuning
+1. **Worker processes**: Match CPU cores
+2. **Connection limits**: Adjust based on traffic
+3. **Buffer sizes**: Optimize for application needs
+4. **Passive health checks**: Configure appropriate timeouts
+
+### OSS-Specific Optimizations
+1. **Load balancing**: Use appropriate method for your use case
+2. **Health monitoring**: Implement application-level health checks
+3. **Session management**: Use application-level session persistence
+4. **Rate limiting**: Configure appropriate limits for your traffic
+
+## Emergency Procedures
+
+### Quick Recovery
+1. **Scale down**: `kubectl scale deployment nginx-ingress-controller --replicas=0`
+2. **Scale up**: `kubectl scale deployment nginx-ingress-controller --replicas=3`
+3. **Restart**: `kubectl rollout restart deployment nginx-ingress-controller`
+
+### Configuration Rollback
+1. **Previous ConfigMap**: Restore from backup
+2. **Previous deployment**: Use `kubectl rollout undo`
+3. **Emergency ingress**: Create minimal ingress for critical services
+
+### Migration Rollback
+1. **Restore Plus configuration**: If migrating back to Plus
+2. **Restore Plus annotations**: Add back Plus-specific annotations
+3. **Restore App Protect**: Re-enable App Protect if needed
+
+## Migration Validation
+
+### Post-Migration Checklist
+- [ ] All pods are running without license errors
+- [ ] No Plus-specific annotations in use
+- [ ] No App Protect resources deployed
+- [ ] Load balancing working with OSS methods
+- [ ] Health checks configured as passive only
+- [ ] Monitoring and alerting updated for OSS
+- [ ] Documentation updated for OSS limitations
+
+This cursor rule provides comprehensive guidance for troubleshooting and migrating to NGINX OSS Ingress Controller in production environments. Use the code references and examples to find specific solutions for your requirements.

@@ -1,0 +1,266 @@
+---
+description: Comprehensive troubleshooting guide for NGINX Plus Ingress Controller
+globs: ["**/*.yaml", "**/*.yml", "**/*.go", "**/*.md"]
+alwaysApply: false
+---
+# NGINX Plus Ingress Controller - Troubleshooting & Solutions Guide
+
+## Overview
+This cursor rule provides comprehensive guidance for troubleshooting and finding solutions for NGINX Plus Ingress Controller deployed with Terraform Helm release in production environments.
+
+## Key Architecture Components
+
+### Core Components
+- **Ingress Controller**: Main controller process in `cmd/nginx-ingress/main.go`
+- **NGINX Manager**: Handles NGINX configuration and reloads in `internal/nginx/`
+- **Configuration System**: Parses annotations and ConfigMaps in `internal/configs/`
+- **Kubernetes Integration**: Watches and processes K8s resources in `internal/k8s/`
+- **Helm Chart**: Deployment templates in `charts/nginx-ingress/`
+
+### Version Information
+- Current version: 5.2.0 (from `.github/data/version.txt`)
+- Helm Chart version: 2.3.0
+- NGINX Plus support with license management
+- App Protect WAF v5 support
+
+## Common Troubleshooting Areas
+
+### 1. Deployment Issues
+
+#### Helm Chart Configuration
+- **Location**: `charts/nginx-ingress/values.yaml`
+- **Key settings**: `controller.nginxplus`, `controller.appprotect.enable`, `controller.appprotect.v5`
+- **License management**: `controller.mgmt.licenseTokenSecretName`
+- **Resource limits**: CPU/memory requests and limits
+
+#### Terraform Integration
+- **Helm provider configuration**: Ensure correct repository and version
+- **Values file**: Customize `values.yaml` for production needs
+- **Namespace**: Default is `nginx-ingress`
+
+#### Common Deployment Problems
+```bash
+# Check pod status
+kubectl get pods -n nginx-ingress
+
+# Check events
+kubectl describe pod <pod-name> -n nginx-ingress
+
+# Check logs
+kubectl logs <pod-name> -n nginx-ingress
+
+# Check NGINX configuration
+kubectl exec <pod-name> -n nginx-ingress -- nginx -t
+```
+
+### 2. Configuration Issues
+
+#### Annotations Reference
+- **Location**: `internal/configs/annotations.go`
+- **Key annotations**:
+  - `nginx.org/proxy-connect-timeout`
+  - `nginx.org/proxy-read-timeout`
+  - `nginx.org/client-max-body-size`
+  - `nginx.org/lb-method`
+  - `nginx.com/sticky-cookie-services`
+
+#### ConfigMap Configuration
+- **Global settings**: `internal/configs/configmap.go`
+- **Key parameters**:
+  - `keepalive-timeout`
+  - `keepalive-requests`
+  - `access-log-off`
+  - `variables-hash-bucket-size`
+
+#### Custom Resources
+- **VirtualServer**: Advanced routing in `examples/custom-resources/`
+- **TransportServer**: TCP/UDP load balancing
+- **Policy**: Authentication, rate limiting, access control
+
+### 3. NGINX Plus Specific Features
+
+#### License Management
+```yaml
+# Secret for NGINX Plus license
+apiVersion: v1
+kind: Secret
+metadata:
+  name: license-token
+  namespace: nginx-ingress
+type: nginx.com/license
+data:
+  license.jwt: <base64-encoded-license>
+```
+
+#### Management API
+- **Endpoint**: `/nginx-api/`
+- **Authentication**: JWT token
+- **Features**: Real-time metrics, configuration updates
+
+#### App Protect WAF v5
+- **Configuration**: `examples/custom-resources/app-protect-waf-v5/`
+- **Policy bundles**: Mounted to `/etc/app_protect/bundles/`
+- **Enforcer**: Runs on `127.0.0.1:50000`
+
+### 4. Monitoring & Observability
+
+#### Metrics
+- **Prometheus**: Built-in metrics endpoint
+- **Custom metrics**: Workqueue metrics, configuration metrics
+- **Grafana dashboard**: `grafana/NGINXPlusICDashboard.json`
+
+#### Logging
+- **Access logs**: Configurable format with K8s object variables
+- **Error logs**: Controller and NGINX logs
+- **App Protect logs**: Security event logging
+
+#### Health Checks
+- **Readiness probe**: `/nginx-ready`
+- **Liveness probe**: `/nginx-health`
+- **Startup probe**: Configurable startup time
+
+### 5. Network & Security
+
+#### Load Balancer Configuration
+- **Service types**: NodePort, LoadBalancer, ClusterIP
+- **External IPs**: Cloud provider integration
+- **SSL/TLS**: Certificate management and termination
+
+#### Security Features
+- **TLS termination**: Per-hostname certificates
+- **mTLS**: Mutual TLS for upstream services
+- **Rate limiting**: Request rate limiting with JWT claims
+- **Access control**: IP-based and JWT-based access control
+
+### 6. Performance Optimization
+
+#### NGINX Configuration
+- **Worker processes**: Auto-configured based on CPU cores
+- **Connection limits**: Configurable via ConfigMap
+- **Buffer sizes**: Optimized for high throughput
+
+#### Kubernetes Integration
+- **Service discovery**: Automatic endpoint updates
+- **Health checks**: Upstream health monitoring
+- **Session persistence**: Sticky sessions with cookies
+
+## Troubleshooting Commands
+
+### Basic Diagnostics
+```bash
+# Check controller status
+kubectl get pods -n nginx-ingress -o wide
+
+# Check NGINX configuration
+kubectl exec -n nginx-ingress <pod-name> -- nginx -T
+
+# Check NGINX Plus API
+kubectl exec -n nginx-ingress <pod-name> -- curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8081/nginx-api/
+
+# Check App Protect status
+kubectl exec -n nginx-ingress <pod-name> -- curl http://127.0.0.1:50000/api/v1/status
+```
+
+### Configuration Validation
+```bash
+# Validate Ingress resources
+kubectl describe ingress <ingress-name>
+
+# Check ConfigMap
+kubectl get configmap -n nginx-ingress
+
+# Validate VirtualServer
+kubectl describe virtualserver <vs-name>
+```
+
+### Log Analysis
+```bash
+# Controller logs
+kubectl logs -n nginx-ingress <pod-name> -c nginx-ingress
+
+# NGINX access logs
+kubectl exec -n nginx-ingress <pod-name> -- tail -f /var/log/nginx/access.log
+
+# App Protect logs
+kubectl exec -n nginx-ingress <pod-name> -- tail -f /var/log/app_protect/security.log
+```
+
+## Common Issues & Solutions
+
+### 1. Pod Not Starting
+- **License issues**: Check NGINX Plus license secret
+- **Resource constraints**: Increase CPU/memory limits
+- **Image pull issues**: Check image repository and credentials
+
+### 2. Configuration Not Applied
+- **Annotation syntax**: Verify annotation format
+- **ConfigMap changes**: Restart controller after ConfigMap changes
+- **Validation errors**: Check controller logs for validation messages
+
+### 3. Traffic Not Routing
+- **Service endpoints**: Verify backend services are healthy
+- **Ingress class**: Ensure correct ingress class annotation
+- **Host headers**: Check DNS resolution and host configuration
+
+### 4. SSL/TLS Issues
+- **Certificate secrets**: Verify TLS secret exists and is valid
+- **Certificate format**: Ensure proper PEM format
+- **SNI configuration**: Check server name indication setup
+
+### 5. App Protect WAF Issues
+- **Policy bundles**: Verify bundle mounting and format
+- **Enforcer connectivity**: Check enforcer container health
+- **Log configuration**: Verify syslog destination configuration
+
+## Documentation References
+
+### Official Documentation
+- **NGINX Ingress Controller**: https://docs.nginx.com/nginx-ingress-controller/
+- **NGINX Plus**: https://docs.nginx.com/nginx-plus/
+- **App Protect**: https://docs.nginx.com/nginx-app-protect/
+
+### Code References
+- **Examples**: `examples/custom-resources/`
+- **Deployment manifests**: `deployments/`
+- **Helm chart**: `charts/nginx-ingress/`
+- **Configuration**: `internal/configs/`
+
+### Community Resources
+- **GitHub Issues**: https://github.com/nginx/kubernetes-ingress/issues
+- **Community Calls**: Microsoft Teams meetings (see README.md)
+- **Stack Overflow**: Tagged with `nginx-ingress-controller`
+
+## Best Practices
+
+### Production Deployment
+1. **Resource planning**: Allocate sufficient CPU/memory
+2. **High availability**: Deploy multiple replicas
+3. **Monitoring**: Set up Prometheus and Grafana
+4. **Backup**: Regular configuration backups
+5. **Security**: Use RBAC and network policies
+
+### Configuration Management
+1. **Version control**: Track configuration changes
+2. **Testing**: Validate changes in staging
+3. **Rollback**: Maintain previous configurations
+4. **Documentation**: Document custom configurations
+
+### Performance Tuning
+1. **Worker processes**: Match CPU cores
+2. **Connection limits**: Adjust based on traffic
+3. **Buffer sizes**: Optimize for application needs
+4. **Caching**: Implement appropriate caching strategies
+
+## Emergency Procedures
+
+### Quick Recovery
+1. **Scale down**: `kubectl scale deployment nginx-ingress-controller --replicas=0`
+2. **Scale up**: `kubectl scale deployment nginx-ingress-controller --replicas=3`
+3. **Restart**: `kubectl rollout restart deployment nginx-ingress-controller`
+
+### Configuration Rollback
+1. **Previous ConfigMap**: Restore from backup
+2. **Previous deployment**: Use `kubectl rollout undo`
+3. **Emergency ingress**: Create minimal ingress for critical services
+
+This cursor rule provides comprehensive guidance for troubleshooting NGINX Plus Ingress Controller in production environments. Use the code references and examples to find specific solutions for your requirements.

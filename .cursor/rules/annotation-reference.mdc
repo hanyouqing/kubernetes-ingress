@@ -1,0 +1,406 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# NGINX Ingress Controller - Annotation Reference
+
+## 📋 Quick Annotation Categories
+
+### 🔧 Basic Configuration
+- `nginx.org/proxy-connect-timeout`
+- `nginx.org/proxy-read-timeout`
+- `nginx.org/proxy-send-timeout`
+- `nginx.org/client-max-body-size`
+- `nginx.org/proxy-buffering`
+
+### 🔄 Load Balancing
+- `nginx.org/lb-method`
+- `nginx.com/sticky-cookie-services` (Plus only)
+- `nginx.org/upstream-hash-by`
+- `nginx.org/upstream-hash-by-subset`
+
+### 🛡️ Security & Authentication
+- `nginx.org/ssl-services`
+- `nginx.org/ssl-redirect`
+- `nginx.org/force-ssl-redirect`
+- `nginx.org/websocket-services`
+- `nginx.org/grpc-services`
+
+### 📊 Rate Limiting
+- `nginx.org/rate-limit`
+- `nginx.org/rate-limit-key`
+- `nginx.org/rate-limit-zone-size`
+- `nginx.org/rate-limit-window`
+
+### 🔍 Health Checks
+- `nginx.org/health-checks` (Plus only)
+- `nginx.org/health-checks-mandatory` (Plus only)
+- `nginx.org/health-checks-interval`
+- `nginx.org/health-checks-fails`
+- `nginx.org/health-checks-passes`
+
+## 🔧 Basic Configuration Annotations
+
+### Proxy Timeouts
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.org/proxy-connect-timeout: "30s"
+    nginx.org/proxy-read-timeout: "60s"
+    nginx.org/proxy-send-timeout: "60s"
+spec:
+  # ... rest of spec
+```
+
+**Troubleshooting**:
+```bash
+# Check if timeouts are applied
+kubectl exec <pod-name> -n nginx-ingress -- nginx -T | grep -A 5 "proxy_connect_timeout"
+
+# Check for timeout errors in logs
+kubectl logs <pod-name> -n nginx-ingress | grep -i timeout
+```
+
+### Client Body Size
+```yaml
+metadata:
+  annotations:
+    nginx.org/client-max-body-size: "10m"
+```
+
+**Troubleshooting**:
+```bash
+# Check if limit is applied
+kubectl exec <pod-name> -n nginx-ingress -- nginx -T | grep "client_max_body_size"
+
+# Test with large file upload
+curl -X POST -F "file=@large-file.zip" https://your-domain.com/upload
+```
+
+### Proxy Buffering
+```yaml
+metadata:
+  annotations:
+    nginx.org/proxy-buffering: "on"
+    nginx.org/proxy-buffer-size: "4k"
+    nginx.org/proxy-buffers-number: "8"
+```
+
+## 🔄 Load Balancing Annotations
+
+### Load Balancing Method
+```yaml
+metadata:
+  annotations:
+    nginx.org/lb-method: "least_conn"  # round_robin, ip_hash, least_conn, random
+```
+
+**Available Methods**:
+- `round_robin` (default)
+- `least_conn`
+- `ip_hash`
+- `random`
+- `random two` (Plus only)
+- `hash` (Plus only)
+
+**Troubleshooting**:
+```bash
+# Check load balancing method
+kubectl exec <pod-name> -n nginx-ingress -- nginx -T | grep -A 10 "upstream"
+
+# Test load balancing
+for i in {1..10}; do curl -s https://your-domain.com/ | grep "Server:"; done
+```
+
+### Sticky Sessions (Plus Only)
+```yaml
+metadata:
+  annotations:
+    nginx.com/sticky-cookie-services: "service1,service2"
+    nginx.com/sticky-cookie-expires: "1h"
+    nginx.com/sticky-cookie-domain: ".example.com"
+```
+
+**Troubleshooting**:
+```bash
+# Check if sticky cookies are configured
+kubectl exec <pod-name> -n nginx-ingress -- nginx -T | grep -A 5 "sticky"
+
+# Test sticky sessions
+curl -c cookies.txt https://your-domain.com/
+curl -b cookies.txt https://your-domain.com/
+```
+
+## 🛡️ Security Annotations
+
+### SSL/TLS Configuration
+```yaml
+metadata:
+  annotations:
+    nginx.org/ssl-services: "service1,service2"
+    nginx.org/ssl-redirect: "true"
+    nginx.org/force-ssl-redirect: "true"
+```
+
+**Troubleshooting**:
+```bash
+# Check SSL configuration
+kubectl exec <pod-name> -n nginx-ingress -- nginx -T | grep -A 10 "ssl"
+
+# Test SSL certificate
+openssl s_client -connect your-domain.com:443 -servername your-domain.com
+
+# Check SSL redirect
+curl -I http://your-domain.com/ | grep "Location"
+```
+
+### WebSocket Support
+```yaml
+metadata:
+  annotations:
+    nginx.org/websocket-services: "websocket-service"
+```
+
+**Troubleshooting**:
+```bash
+# Check WebSocket configuration
+kubectl exec <pod-name> -n nginx-ingress -- nginx -T | grep -A 5 "websocket"
+
+# Test WebSocket connection
+wscat -c ws://your-domain.com/websocket
+```
+
+### gRPC Support
+```yaml
+metadata:
+  annotations:
+    nginx.org/grpc-services: "grpc-service"
+    nginx.org/grpc-read-timeout: "1h"
+    nginx.org/grpc-send-timeout: "1h"
+```
+
+## 📊 Rate Limiting Annotations
+
+### Basic Rate Limiting
+```yaml
+metadata:
+  annotations:
+    nginx.org/rate-limit: "10r/s"
+    nginx.org/rate-limit-key: "$remote_addr"
+    nginx.org/rate-limit-zone-size: "10m"
+    nginx.org/rate-limit-window: "1m"
+```
+
+**Rate Limit Keys**:
+- `$remote_addr` (IP address)
+- `$binary_remote_addr` (binary IP)
+- `$http_x_forwarded_for` (X-Forwarded-For header)
+- `$http_x_real_ip` (X-Real-IP header)
+
+**Troubleshooting**:
+```bash
+# Check rate limiting configuration
+kubectl exec <pod-name> -n nginx-ingress -- nginx -T | grep -A 10 "limit_req"
+
+# Test rate limiting
+for i in {1..20}; do curl -I https://your-domain.com/; done
+
+# Check rate limit status
+kubectl exec <pod-name> -n nginx-ingress -- curl -s http://localhost:8080/api/1/http/limit_req_status
+```
+
+### Advanced Rate Limiting
+```yaml
+metadata:
+  annotations:
+    nginx.org/rate-limit: "100r/m"
+    nginx.org/rate-limit-burst: "50"
+    nginx.org/rate-limit-nodelay: "false"
+```
+
+## 🔍 Health Check Annotations (Plus Only)
+
+### Active Health Checks
+```yaml
+metadata:
+  annotations:
+    nginx.org/health-checks: "true"
+    nginx.org/health-checks-mandatory: "true"
+    nginx.org/health-checks-interval: "5s"
+    nginx.org/health-checks-fails: "3"
+    nginx.org/health-checks-passes: "2"
+    nginx.org/health-checks-uri: "/health"
+    nginx.org/health-checks-timeout: "3s"
+```
+
+**Troubleshooting**:
+```bash
+# Check health check configuration
+kubectl exec <pod-name> -n nginx-ingress -- nginx -T | grep -A 15 "health_check"
+
+# Check upstream health status
+kubectl exec <pod-name> -n nginx-ingress -- curl -s http://localhost:8080/api/1/http/upstreams
+```
+
+## 🎯 Custom Headers Annotations
+
+### Proxy Headers
+```yaml
+metadata:
+  annotations:
+    nginx.org/proxy-set-headers: "default"
+    nginx.org/proxy-hide-headers: "X-Powered-By"
+    nginx.org/proxy-pass-headers: "X-Custom-Header"
+```
+
+### Response Headers
+```yaml
+metadata:
+  annotations:
+    nginx.org/add-headers: "default"
+    nginx.org/server-tokens: "false"
+```
+
+## 🔧 Advanced Configuration
+
+### Custom NGINX Configuration
+```yaml
+metadata:
+  annotations:
+    nginx.org/server-snippets: |
+      location /custom {
+        return 200 "Custom response";
+      }
+    nginx.org/location-snippets: |
+      proxy_set_header X-Custom-Header "value";
+```
+
+### Upstream Configuration
+```yaml
+metadata:
+  annotations:
+    nginx.org/upstream-hash-by: "$remote_addr"
+    nginx.org/upstream-hash-by-subset: "3"
+    nginx.org/upstream-zone-size: "256k"
+```
+
+## 🚨 Common Annotation Issues
+
+### Issue: Annotations Not Applied
+**Symptoms**: Changes not reflected in NGINX configuration
+**Troubleshooting**:
+```bash
+# Check if ConfigMap is updated
+kubectl get configmap nginx-config -n nginx-ingress -o yaml
+
+# Check NGINX configuration
+kubectl exec <pod-name> -n nginx-ingress -- nginx -T | grep -i "annotation"
+
+# Check controller logs
+kubectl logs <pod-name> -n nginx-ingress | grep -i "annotation"
+```
+
+### Issue: Syntax Errors
+**Symptoms**: NGINX configuration validation fails
+**Troubleshooting**:
+```bash
+# Validate NGINX configuration
+kubectl exec <pod-name> -n nginx-ingress -- nginx -t
+
+# Check for syntax errors in logs
+kubectl logs <pod-name> -n nginx-ingress | grep -i "error"
+
+# Check annotation format
+kubectl get ingress <ingress-name> -o yaml | grep -A 5 -B 5 "annotations"
+```
+
+### Issue: Plus-Only Features in OSS
+**Symptoms**: Plus annotations ignored in OSS deployment
+**Troubleshooting**:
+```bash
+# Check if using NGINX Plus
+kubectl exec <pod-name> -n nginx-ingress -- nginx -v
+
+# Check license status (Plus only)
+kubectl exec <pod-name> -n nginx-ingress -- curl -s http://localhost:8080/api/1/version
+
+# Check controller configuration
+kubectl get configmap nginx-config -n nginx-ingress -o yaml | grep nginxplus
+```
+
+## 📝 Annotation Best Practices
+
+### 1. Use Specific Annotations
+```yaml
+# Good - specific timeout
+nginx.org/proxy-read-timeout: "60s"
+
+# Avoid - generic timeout
+nginx.org/proxy-timeout: "60s"
+```
+
+### 2. Validate Values
+```yaml
+# Good - valid time format
+nginx.org/proxy-connect-timeout: "30s"
+
+# Bad - invalid format
+nginx.org/proxy-connect-timeout: "30"
+```
+
+### 3. Use Appropriate Scopes
+```yaml
+# Service-specific annotations
+metadata:
+  annotations:
+    nginx.org/websocket-services: "websocket-app"
+
+# Global annotations in ConfigMap
+data:
+  keepalive-timeout: "65s"
+```
+
+### 4. Monitor Annotation Usage
+```bash
+# Check all annotations in use
+kubectl get ingress --all-namespaces -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.annotations}{"\n"}{end}'
+
+# Check for deprecated annotations
+kubectl logs <pod-name> -n nginx-ingress | grep -i "deprecated"
+```
+
+## 🔍 Debugging Annotation Issues
+
+### Check Annotation Processing
+```bash
+# Enable debug logging
+kubectl patch configmap nginx-config -n nginx-ingress --patch '{"data":{"log-level":"debug"}}'
+
+# Check debug logs
+kubectl logs <pod-name> -n nginx-ingress | grep -i "annotation"
+```
+
+### Validate Annotation Values
+```bash
+# Check annotation syntax
+kubectl get ingress <ingress-name> -o jsonpath='{.metadata.annotations}' | jq .
+
+# Test annotation parsing
+kubectl exec <pod-name> -n nginx-ingress -- nginx -T | grep -A 5 -B 5 "annotation"
+```
+
+### Compare Configurations
+```bash
+# Before annotation change
+kubectl exec <pod-name> -n nginx-ingress -- nginx -T > before.conf
+
+# After annotation change
+kubectl exec <pod-name> -n nginx-ingress -- nginx -T > after.conf
+
+# Compare differences
+diff before.conf after.conf
+```
+

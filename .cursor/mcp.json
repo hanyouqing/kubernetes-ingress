@@ -1,0 +1,277 @@
+{
+  "mcpServers": {
+    "nginx-docs": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-nginx-docs"],
+      "env": {
+        "NGINX_DOCS_URL": "https://docs.nginx.com/nginx-ingress-controller/",
+        "NGINX_DOCS_CACHE_TTL": "3600"
+      }
+    },
+    "kubernetes-cluster": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-kubernetes"],
+      "env": {
+        "KUBECONFIG": "${KUBECONFIG_PATH}",
+        "KUBERNETES_NAMESPACE": "${K8S_NAMESPACE}",
+        "KUBERNETES_CONTEXT": "${K8S_CONTEXT}",
+        "KUBERNETES_READ_ONLY": "true",
+        "KUBERNETES_RESOURCE_LIMITS": "pods,services,ingresses"
+      }
+    },
+    "helm-charts": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-helm"],
+      "env": {
+        "HELM_CACHE_HOME": "${HELM_CACHE_HOME}",
+        "HELM_NAMESPACE": "${HELM_NAMESPACE}",
+        "HELM_READ_ONLY": "true"
+      }
+    },
+    "github-issues": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        "GITHUB_REPO": "nginx/kubernetes-ingress",
+        "GITHUB_RATE_LIMIT": "1000",
+        "GITHUB_CACHE_TTL": "1800"
+      }
+    },
+    "docker-hub": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-dockerhub"],
+      "env": {
+        "DOCKERHUB_TOKEN": "${DOCKERHUB_TOKEN}",
+        "DOCKERHUB_ORG": "${DOCKERHUB_ORG}",
+        "DOCKERHUB_RATE_LIMIT": "100"
+      }
+    },
+    "prometheus-metrics": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-prometheus"],
+      "env": {
+        "PROMETHEUS_URL": "${PROMETHEUS_URL}",
+        "PROMETHEUS_TOKEN": "${PROMETHEUS_TOKEN}",
+        "PROMETHEUS_TIMEOUT": "30",
+        "PROMETHEUS_QUERY_LIMIT": "1000"
+      }
+    },
+    "grafana-dashboard": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-grafana"],
+      "env": {
+        "GRAFANA_URL": "${GRAFANA_URL}",
+        "GRAFANA_TOKEN": "${GRAFANA_TOKEN}",
+        "GRAFANA_ORG_ID": "${GRAFANA_ORG_ID}",
+        "GRAFANA_TIMEOUT": "30"
+      }
+    },
+    "terraform-state": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-terraform"],
+      "env": {
+        "TF_STATE_FILE": "${TF_STATE_FILE}",
+        "TF_WORKSPACE": "${TF_WORKSPACE}",
+        "TF_READ_ONLY": "true",
+        "TF_SENSITIVE_FIELDS": "password,secret,token,key"
+      }
+    },
+    "nginx-config-validator": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-nginx-validator"],
+      "env": {
+        "NGINX_BINARY": "${NGINX_BINARY_PATH}",
+        "NGINX_CONFIG_PATH": "${NGINX_CONFIG_PATH}",
+        "NGINX_VALIDATION_TIMEOUT": "60"
+      }
+    },
+    "k8s-events": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-kubernetes-events"],
+      "env": {
+        "KUBECONFIG": "${KUBECONFIG_PATH}",
+        "NAMESPACE": "${K8S_NAMESPACE}",
+        "EVENT_FILTER": "Warning,Error",
+        "EVENT_LIMIT": "100",
+        "EVENT_TIMEOUT": "30"
+      }
+    },
+    "helm-releases": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-helm-releases"],
+      "env": {
+        "KUBECONFIG": "${KUBECONFIG_PATH}",
+        "HELM_NAMESPACE": "${HELM_NAMESPACE}",
+        "HELM_READ_ONLY": "true",
+        "HELM_RELEASE_LIMIT": "50"
+      }
+    },
+    "nginx-logs": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-nginx-logs"],
+      "env": {
+        "LOG_PATH": "${NGINX_LOG_PATH}",
+        "ACCESS_LOG": "access.log",
+        "ERROR_LOG": "error.log",
+        "LOG_READ_ONLY": "true",
+        "LOG_LINE_LIMIT": "1000",
+        "LOG_SENSITIVE_FILTERS": "password,token,secret,key"
+      }
+    },
+    "certificate-validator": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-cert-validator"],
+      "env": {
+        "CA_BUNDLE_PATH": "${CA_BUNDLE_PATH}",
+        "CERT_VALIDATION_TIMEOUT": "30",
+        "CERT_EXPIRY_WARNING_DAYS": "30"
+      }
+    },
+    "network-diagnostics": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-network-diagnostics"],
+      "env": {
+        "DNS_SERVERS": "${DNS_SERVERS}",
+        "NETWORK_TIMEOUT": "10",
+        "NETWORK_RETRY_COUNT": "3",
+        "NETWORK_SAFE_MODE": "true"
+      }
+    },
+    "security-scanner": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-security-scanner"],
+      "env": {
+        "SCAN_DEPTH": "medium",
+        "EXCLUDE_PATTERNS": "node_modules,dist,.git,.env,secrets",
+        "SCAN_TIMEOUT": "300",
+        "SCAN_SAFE_MODE": "true",
+        "SCAN_REPORT_ONLY": "true"
+      }
+    },
+    "performance-monitor": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-performance-monitor"],
+      "env": {
+        "METRICS_INTERVAL": "30",
+        "ALERT_THRESHOLD": "80",
+        "METRICS_READ_ONLY": "true",
+        "METRICS_RETENTION_DAYS": "7"
+      }
+    },
+    "nginx-config-analyzer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-nginx-config-analyzer"],
+      "env": {
+        "NGINX_CONFIG_PATH": "${NGINX_CONFIG_PATH}",
+        "ANALYSIS_DEPTH": "detailed",
+        "SECURITY_CHECKS": "true",
+        "PERFORMANCE_CHECKS": "true",
+        "BEST_PRACTICES": "true"
+      }
+    },
+    "log-analyzer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-log-analyzer"],
+      "env": {
+        "LOG_PATHS": "${NGINX_LOG_PATH},/var/log/containers",
+        "ANALYSIS_PATTERNS": "error,timeout,slow,denied",
+        "ALERT_THRESHOLDS": "error_rate:5,response_time:2000",
+        "REPORT_FORMAT": "json",
+        "ANALYSIS_WINDOW": "1h"
+      }
+    },
+    "ssl-cert-manager": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-ssl-cert-manager"],
+      "env": {
+        "CERT_MANAGER_NAMESPACE": "cert-manager",
+        "CERT_MANAGER_TIMEOUT": "30",
+        "CERT_EXPIRY_WARNING": "30",
+        "AUTO_RENEWAL_CHECK": "true"
+      }
+    },
+    "upstream-health-checker": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-upstream-health-checker"],
+      "env": {
+        "HEALTH_CHECK_INTERVAL": "30",
+        "HEALTH_CHECK_TIMEOUT": "10",
+        "HEALTH_CHECK_RETRIES": "3",
+        "UPSTREAM_DISCOVERY": "true"
+      }
+    },
+    "rate-limit-analyzer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-rate-limit-analyzer"],
+      "env": {
+        "RATE_LIMIT_ANALYSIS": "true",
+        "BURST_ANALYSIS": "true",
+        "THROTTLE_DETECTION": "true",
+        "PATTERN_ANALYSIS": "true"
+      }
+    },
+    "app-protect-analyzer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-app-protect-analyzer"],
+      "env": {
+        "APP_PROTECT_ENABLED": "${APP_PROTECT_ENABLED}",
+        "WAF_POLICY_ANALYSIS": "true",
+        "ATTACK_DETECTION": "true",
+        "SECURITY_REPORTING": "true"
+      }
+    },
+    "ingress-validator": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-ingress-validator"],
+      "env": {
+        "VALIDATION_RULES": "syntax,security,best_practices",
+        "CUSTOM_RULES_PATH": "${CUSTOM_RULES_PATH}",
+        "VALIDATION_TIMEOUT": "60",
+        "AUTO_FIX_SUGGESTIONS": "true"
+      }
+    },
+    "cluster-resource-monitor": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-cluster-resource-monitor"],
+      "env": {
+        "KUBECONFIG": "${KUBECONFIG_PATH}",
+        "RESOURCE_MONITORING": "cpu,memory,disk,network",
+        "ALERT_THRESHOLDS": "cpu:80,memory:85,disk:90",
+        "MONITORING_INTERVAL": "60"
+      }
+    },
+    "backup-restore-manager": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-backup-restore-manager"],
+      "env": {
+        "BACKUP_STORAGE_PATH": "${BACKUP_STORAGE_PATH}",
+        "BACKUP_RETENTION_DAYS": "30",
+        "AUTO_BACKUP_ENABLED": "true",
+        "BACKUP_ENCRYPTION": "true"
+      }
+    }
+  },
+  "security": {
+    "encryption": {
+      "enabled": true,
+      "algorithm": "AES-256-GCM"
+    },
+    "authentication": {
+      "required": true,
+      "timeout": 3600
+    },
+    "authorization": {
+      "role_based": true,
+      "read_only_default": true
+    },
+    "audit": {
+      "enabled": true,
+      "log_level": "info"
+    },
+    "rate_limiting": {
+      "enabled": true,
+      "requests_per_minute": 100
+    }
+  }
+}

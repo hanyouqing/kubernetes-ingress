@@ -1,0 +1,274 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+# Quick NGINX Ingress Controller Troubleshooting
+
+## 🚨 Emergency Commands (Run First)
+
+### 1. Check Pod Status
+```bash
+# Check all pods in nginx-ingress namespace
+kubectl get pods -n nginx-ingress
+
+# Check specific pod details
+kubectl describe pod <pod-name> -n nginx-ingress
+
+# Check recent events
+kubectl get events -n nginx-ingress --sort-by='.lastTimestamp'
+```
+
+### 2. Check Logs
+```bash
+# Check controller logs
+kubectl logs -f deployment/nginx-ingress -n nginx-ingress
+
+# Check NGINX logs inside container
+kubectl exec <pod-name> -n nginx-ingress -- tail -f /var/log/nginx/error.log
+kubectl exec <pod-name> -n nginx-ingress -- tail -f /var/log/nginx/access.log
+
+# Check NGINX configuration
+kubectl exec <pod-name> -n nginx-ingress -- nginx -t
+```
+
+### 3. Check Services and Endpoints
+```bash
+# Check services
+kubectl get svc -n nginx-ingress
+
+# Check endpoints
+kubectl get endpoints -n nginx-ingress
+
+# Check ingress resources
+kubectl get ingress --all-namespaces
+```
+
+## 🔍 Common Issues & Solutions
+
+### Issue: Pods in CrashLoopBackOff
+**Symptoms**: Pods restarting repeatedly
+**Quick Fix**:
+```bash
+# Check resource limits
+kubectl describe pod <pod-name> -n nginx-ingress | grep -A 10 "Events:"
+
+# Check if it's a resource issue
+kubectl top pods -n nginx-ingress
+
+# Check if it's a configuration issue
+kubectl logs <pod-name> -n nginx-ingress --previous
+```
+
+### Issue: 502 Bad Gateway
+**Symptoms**: Upstream services unreachable
+**Quick Fix**:
+```bash
+# Check if backend services are running
+kubectl get pods --all-namespaces | grep <service-name>
+
+# Check service endpoints
+kubectl get endpoints <service-name> -n <namespace>
+
+# Test connectivity from ingress pod
+kubectl exec <pod-name> -n nginx-ingress -- curl -v <service-url>
+```
+
+### Issue: SSL/TLS Certificate Problems
+**Symptoms**: HTTPS errors, certificate warnings
+**Quick Fix**:
+```bash
+# Check TLS secrets
+kubectl get secrets --all-namespaces | grep tls
+
+# Verify certificate validity
+kubectl get secret <tls-secret> -n <namespace> -o yaml
+
+# Check certificate in NGINX
+kubectl exec <pod-name> -n nginx-ingress -- openssl s_client -connect <host>:443 -servername <host>
+```
+
+### Issue: Rate Limiting Not Working
+**Symptoms**: Rate limiting annotations ignored
+**Quick Fix**:
+```bash
+# Check if rate limiting is enabled in ConfigMap
+kubectl get configmap nginx-config -n nginx-ingress -o yaml
+
+# Check NGINX Plus license (if using Plus features)
+kubectl get secret -n nginx-ingress | grep license
+
+# Check annotations on ingress
+kubectl get ingress <ingress-name> -n <namespace> -o yaml
+```
+
+## 🛠️ Advanced Diagnostics
+
+### Check NGINX Configuration
+```bash
+# View current NGINX config
+kubectl exec <pod-name> -n nginx-ingress -- cat /etc/nginx/nginx.conf
+
+# Check specific server blocks
+kubectl exec <pod-name> -n nginx-ingress -- nginx -T | grep -A 20 "server {"
+
+# Validate configuration
+kubectl exec <pod-name> -n nginx-ingress -- nginx -t
+```
+
+### Check Metrics and Performance
+```bash
+# Check NGINX Plus metrics (if available)
+kubectl exec <pod-name> -n nginx-ingress -- curl -s http://localhost:8080/api/1/http/upstreams
+
+# Check resource usage
+kubectl top pods -n nginx-ingress
+
+# Check NGINX status
+kubectl exec <pod-name> -n nginx-ingress -- curl -s http://localhost:8080/nginx_status
+```
+
+### Check Network Connectivity
+```bash
+# Test DNS resolution
+kubectl exec <pod-name> -n nginx-ingress -- nslookup <service-name>
+
+# Test port connectivity
+kubectl exec <pod-name> -n nginx-ingress -- telnet <service-ip> <port>
+
+# Check routing
+kubectl exec <pod-name> -n nginx-ingress -- ip route show
+```
+
+## 📊 Monitoring Commands
+
+### Check Prometheus Metrics
+```bash
+# Get NGINX metrics
+curl -s "http://<prometheus-url>/api/v1/query?query=nginx_ingress_nginx_http_requests_total"
+
+# Get upstream health
+curl -s "http://<prometheus-url>/api/v1/query?query=nginx_ingress_nginx_upstream_health"
+```
+
+### Check Grafana Dashboards
+```bash
+# Get dashboard data
+curl -H "Authorization: Bearer <token>" "http://<grafana-url>/api/dashboards/uid/<dashboard-uid>"
+```
+
+## 🔧 Configuration Validation
+
+### Validate Helm Values
+```bash
+# Check current values
+helm get values nginx-ingress -n nginx-ingress
+
+# Validate values file
+helm template nginx-ingress nginx/nginx-ingress -f values.yaml --dry-run
+```
+
+### Validate Custom Resources
+```bash
+# Check VirtualServer resources
+kubectl get virtualserver --all-namespaces
+
+# Check TransportServer resources
+kubectl get transportserver --all-namespaces
+
+# Check Policy resources
+kubectl get policy --all-namespaces
+```
+
+## 🚀 Performance Optimization
+
+### Check NGINX Worker Processes
+```bash
+# Check worker processes
+kubectl exec <pod-name> -n nginx-ingress -- ps aux | grep nginx
+
+# Check worker connections
+kubectl exec <pod-name> -n nginx-ingress -- curl -s http://localhost:8080/api/1/http/connections
+```
+
+### Memory and CPU Analysis
+```bash
+# Check memory usage
+kubectl exec <pod-name> -n nginx-ingress -- cat /proc/meminfo
+
+# Check CPU usage
+kubectl exec <pod-name> -n nginx-ingress -- top -n 1
+```
+
+## 📝 Log Analysis
+
+### Parse Access Logs
+```bash
+# Get top IP addresses
+kubectl exec <pod-name> -n nginx-ingress -- tail -1000 /var/log/nginx/access.log | awk '{print $1}' | sort | uniq -c | sort -nr
+
+# Get top URLs
+kubectl exec <pod-name> -n nginx-ingress -- tail -1000 /var/log/nginx/access.log | awk '{print $7}' | sort | uniq -c | sort -nr
+
+# Get error status codes
+kubectl exec <pod-name> -n nginx-ingress -- tail -1000 /var/log/nginx/access.log | awk '$9 >= 400 {print $9}' | sort | uniq -c
+```
+
+### Parse Error Logs
+```bash
+# Get recent errors
+kubectl exec <pod-name> -n nginx-ingress -- tail -100 /var/log/nginx/error.log
+
+# Get error patterns
+kubectl exec <pod-name> -n nginx-ingress -- tail -1000 /var/log/nginx/error.log | grep -o "error.*" | sort | uniq -c
+```
+
+## 🎯 Version-Specific Commands
+
+### NGINX Plus Specific
+```bash
+# Check license status
+kubectl exec <pod-name> -n nginx-ingress -- curl -s http://localhost:8080/api/1/version
+
+# Check App Protect status (if enabled)
+kubectl exec <pod-name> -n nginx-ingress -- curl -s http://localhost:8080/api/1/app_protect
+```
+
+### NGINX OSS Specific
+```bash
+# Check NGINX version
+kubectl exec <pod-name> -n nginx-ingress -- nginx -v
+
+# Check compiled modules
+kubectl exec <pod-name> -n nginx-ingress -- nginx -V 2>&1 | grep -o "with-http_[a-z_]*_module"
+```
+
+## 🔄 Recovery Procedures
+
+### Restart Ingress Controller
+```bash
+# Restart deployment
+kubectl rollout restart deployment/nginx-ingress -n nginx-ingress
+
+# Check rollout status
+kubectl rollout status deployment/nginx-ingress -n nginx-ingress
+```
+
+### Reload NGINX Configuration
+```bash
+# Reload configuration
+kubectl exec <pod-name> -n nginx-ingress -- nginx -s reload
+
+# Check if reload was successful
+kubectl exec <pod-name> -n nginx-ingress -- nginx -t
+```
+
+### Emergency Rollback
+```bash
+# Rollback to previous version
+kubectl rollout undo deployment/nginx-ingress -n nginx-ingress
+
+# Check rollback status
+kubectl rollout status deployment/nginx-ingress -n nginx-ingress
+```
