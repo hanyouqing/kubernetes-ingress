@@ -63,3 +63,4 @@ package.json
 # kind kube-config
 kube-local
 venv/
+.cursor/mcp.env

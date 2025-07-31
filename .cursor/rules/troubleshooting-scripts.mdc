@@ -1,0 +1,532 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# NGINX Ingress Controller - Troubleshooting Scripts
+
+## 🚨 Emergency Diagnostic Scripts
+
+### 1. Quick Health Check Script
+```bash
+#!/bin/bash
+# quick-health-check.sh
+# Usage: ./quick-health-check.sh [namespace] [pod-name]
+
+NAMESPACE=${1:-nginx-ingress}
+POD_NAME=${2:-$(kubectl get pods -n $NAMESPACE -l app=nginx-ingress -o jsonpath='{.items[0].metadata.name}')}
+
+echo "🔍 Quick Health Check for NGINX Ingress Controller"
+echo "Namespace: $NAMESPACE"
+echo "Pod: $POD_NAME"
+echo "=========================================="
+
+# Check pod status
+echo "📊 Pod Status:"
+kubectl get pod $POD_NAME -n $NAMESPACE -o wide
+
+# Check recent events
+echo -e "\n📋 Recent Events:"
+kubectl get events -n $NAMESPACE --sort-by='.lastTimestamp' | head -10
+
+# Check NGINX configuration
+echo -e "\n⚙️ NGINX Configuration:"
+kubectl exec $POD_NAME -n $NAMESPACE -- nginx -t 2>&1
+
+# Check NGINX processes
+echo -e "\n🔄 NGINX Processes:"
+kubectl exec $POD_NAME -n $NAMESPACE -- ps aux | grep nginx
+
+# Check resource usage
+echo -e "\n💾 Resource Usage:"
+kubectl top pod $POD_NAME -n $NAMESPACE
+
+# Check recent logs
+echo -e "\n📝 Recent Error Logs:"
+kubectl logs $POD_NAME -n $NAMESPACE --tail=20 | grep -i error
+
+echo -e "\n✅ Health check completed!"
+```
+
+### 2. SSL Certificate Checker
+```bash
+#!/bin/bash
+# ssl-cert-checker.sh
+# Usage: ./ssl-cert-checker.sh [domain] [port]
+
+DOMAIN=${1:-"your-domain.com"}
+PORT=${2:-443}
+
+echo "🔒 SSL Certificate Check for $DOMAIN:$PORT"
+echo "=========================================="
+
+# Check certificate validity
+echo "📋 Certificate Details:"
+openssl s_client -connect $DOMAIN:$PORT -servername $DOMAIN < /dev/null 2>/dev/null | openssl x509 -noout -dates
+
+# Check certificate chain
+echo -e "\n🔗 Certificate Chain:"
+openssl s_client -connect $DOMAIN:$PORT -servername $DOMAIN < /dev/null 2>/dev/null | openssl x509 -noout -text | grep -A 5 "Subject Alternative Name"
+
+# Check TLS version
+echo -e "\n🔐 TLS Version:"
+openssl s_client -connect $DOMAIN:$PORT -servername $DOMAIN < /dev/null 2>/dev/null | grep "TLSv"
+
+# Check cipher suites
+echo -e "\n🔐 Cipher Suites:"
+openssl s_client -connect $DOMAIN:$PORT -servername $DOMAIN < /dev/null 2>/dev/null | grep "Cipher is"
+
+echo -e "\n✅ SSL check completed!"
+```
+
+### 3. Load Balancer Test Script
+```bash
+#!/bin/bash
+# load-balancer-test.sh
+# Usage: ./load-balancer-test.sh [url] [requests]
+
+URL=${1:-"https://your-domain.com/"}
+REQUESTS=${2:-20}
+
+echo "⚖️ Load Balancer Test for $URL"
+echo "Requests: $REQUESTS"
+echo "=========================================="
+
+# Test load balancing
+echo "🔄 Testing load balancing..."
+for i in $(seq 1 $REQUESTS); do
+    echo "Request $i: $(curl -s $URL | grep -o 'Server: [^<]*' || echo 'No server header')"
+    sleep 0.1
+done
+
+# Analyze results
+echo -e "\n📊 Load Balancing Analysis:"
+curl -s $URL | grep -o 'Server: [^<]*' | sort | uniq -c | sort -nr
+
+echo -e "\n✅ Load balancer test completed!"
+```
+
+## 🔍 Advanced Diagnostic Scripts
+
+### 4. NGINX Configuration Analyzer
+```bash
+#!/bin/bash
+# nginx-config-analyzer.sh
+# Usage: ./nginx-config-analyzer.sh [namespace] [pod-name]
+
+NAMESPACE=${1:-nginx-ingress}
+POD_NAME=${2:-$(kubectl get pods -n $NAMESPACE -l app=nginx-ingress -o jsonpath='{.items[0].metadata.name}')}
+
+echo "🔍 NGINX Configuration Analysis"
+echo "Namespace: $NAMESPACE"
+echo "Pod: $POD_NAME"
+echo "=========================================="
+
+# Get NGINX configuration
+CONFIG=$(kubectl exec $POD_NAME -n $NAMESPACE -- nginx -T 2>/dev/null)
+
+# Analyze upstreams
+echo "📊 Upstream Analysis:"
+echo "$CONFIG" | grep -A 10 "upstream" | grep -E "(upstream|server)" | head -20
+
+# Analyze server blocks
+echo -e "\n🌐 Server Blocks:"
+echo "$CONFIG" | grep -c "server {" | xargs echo "Total server blocks:"
+
+# Analyze SSL configuration
+echo -e "\n🔒 SSL Configuration:"
+echo "$CONFIG" | grep -i "ssl" | head -10
+
+# Analyze rate limiting
+echo -e "\n🚦 Rate Limiting:"
+echo "$CONFIG" | grep -i "limit_req" | head -5
+
+# Analyze health checks
+echo -e "\n💓 Health Checks:"
+echo "$CONFIG" | grep -i "health_check" | head -5
+
+# Check for common issues
+echo -e "\n⚠️ Common Issues Check:"
+echo "$CONFIG" | grep -i "error\|warning\|deprecated" | head -5
+
+echo -e "\n✅ Configuration analysis completed!"
+```
+
+### 5. Performance Monitor Script
+```bash
+#!/bin/bash
+# performance-monitor.sh
+# Usage: ./performance-monitor.sh [namespace] [duration]
+
+NAMESPACE=${1:-nginx-ingress}
+DURATION=${2:-300}  # 5 minutes default
+
+echo "📊 Performance Monitor for NGINX Ingress Controller"
+echo "Namespace: $NAMESPACE"
+echo "Duration: $DURATION seconds"
+echo "=========================================="
+
+# Get pod name
+POD_NAME=$(kubectl get pods -n $NAMESPACE -l app=nginx-ingress -o jsonpath='{.items[0].metadata.name}')
+
+# Monitor resource usage
+echo "💾 Resource Usage Monitoring:"
+for i in $(seq 1 $((DURATION/30))); do
+    echo "Sample $i:"
+    kubectl top pod $POD_NAME -n $NAMESPACE
+    echo "---"
+    sleep 30
+done
+
+# Check NGINX status
+echo -e "\n🔄 NGINX Status:"
+kubectl exec $POD_NAME -n $NAMESPACE -- curl -s http://localhost:8080/nginx_status 2>/dev/null || echo "NGINX status not available"
+
+# Check connection count
+echo -e "\n🔗 Active Connections:"
+kubectl exec $POD_NAME -n $NAMESPACE -- netstat -an | grep ESTABLISHED | wc -l
+
+echo -e "\n✅ Performance monitoring completed!"
+```
+
+### 6. Log Analysis Script
+```bash
+#!/bin/bash
+# log-analyzer.sh
+# Usage: ./log-analyzer.sh [namespace] [pod-name] [hours]
+
+NAMESPACE=${1:-nginx-ingress}
+POD_NAME=${2:-$(kubectl get pods -n $NAMESPACE -l app=nginx-ingress -o jsonpath='{.items[0].metadata.name}')}
+HOURS=${3:-1}
+
+echo "📝 Log Analysis for NGINX Ingress Controller"
+echo "Namespace: $NAMESPACE"
+echo "Pod: $POD_NAME"
+echo "Time Range: Last $HOURS hour(s)"
+echo "=========================================="
+
+# Get access logs
+echo "📊 Access Log Analysis:"
+ACCESS_LOGS=$(kubectl exec $POD_NAME -n $NAMESPACE -- tail -n 1000 /var/log/nginx/access.log 2>/dev/null)
+
+# Top IP addresses
+echo "🔝 Top IP Addresses:"
+echo "$ACCESS_LOGS" | awk '{print $1}' | sort | uniq -c | sort -nr | head -10
+
+# Top URLs
+echo -e "\n🔝 Top URLs:"
+echo "$ACCESS_LOGS" | awk '{print $7}' | sort | uniq -c | sort -nr | head -10
+
+# Error status codes
+echo -e "\n❌ Error Status Codes:"
+echo "$ACCESS_LOGS" | awk '$9 >= 400 {print $9}' | sort | uniq -c | sort -nr
+
+# Get error logs
+echo -e "\n📋 Error Log Analysis:"
+ERROR_LOGS=$(kubectl exec $POD_NAME -n $NAMESPACE -- tail -n 100 /var/log/nginx/error.log 2>/dev/null)
+
+# Error patterns
+echo "🔍 Error Patterns:"
+echo "$ERROR_LOGS" | grep -o "error.*" | sort | uniq -c | sort -nr | head -10
+
+echo -e "\n✅ Log analysis completed!"
+```
+
+## 🛠️ Troubleshooting Scripts
+
+### 7. Connection Test Script
+```bash
+#!/bin/bash
+# connection-test.sh
+# Usage: ./connection-test.sh [service] [namespace] [port]
+
+SERVICE=${1:-"your-service"}
+NAMESPACE=${2:-"default"}
+PORT=${3:-80}
+
+echo "🔗 Connection Test for $SERVICE.$NAMESPACE:$PORT"
+echo "=========================================="
+
+# Get service IP
+SERVICE_IP=$(kubectl get service $SERVICE -n $NAMESPACE -o jsonpath='{.spec.clusterIP}')
+
+echo "📋 Service Details:"
+kubectl get service $SERVICE -n $NAMESPACE
+
+echo -e "\n🔍 Endpoint Details:"
+kubectl get endpoints $SERVICE -n $NAMESPACE
+
+# Test from ingress pod
+INGRESS_POD=$(kubectl get pods -n nginx-ingress -l app=nginx-ingress -o jsonpath='{.items[0].metadata.name}')
+
+echo -e "\n🧪 Testing connectivity from ingress pod:"
+kubectl exec $INGRESS_POD -n nginx-ingress -- curl -v $SERVICE_IP:$PORT 2>&1 | head -20
+
+# Test DNS resolution
+echo -e "\n🌐 DNS Resolution Test:"
+kubectl exec $INGRESS_POD -n nginx-ingress -- nslookup $SERVICE.$NAMESPACE.svc.cluster.local
+
+echo -e "\n✅ Connection test completed!"
+```
+
+### 8. Certificate Manager Script
+```bash
+#!/bin/bash
+# cert-manager-check.sh
+# Usage: ./cert-manager-check.sh [namespace]
+
+NAMESPACE=${1:-cert-manager}
+
+echo "🔒 Certificate Manager Health Check"
+echo "Namespace: $NAMESPACE"
+echo "=========================================="
+
+# Check cert-manager pods
+echo "📊 Cert-Manager Pods:"
+kubectl get pods -n $NAMESPACE
+
+# Check certificate resources
+echo -e "\n📜 Certificate Resources:"
+kubectl get certificates --all-namespaces
+
+# Check certificate requests
+echo -e "\n📋 Certificate Requests:"
+kubectl get certificaterequests --all-namespaces
+
+# Check cluster issuers
+echo -e "\n🏢 Cluster Issuers:"
+kubectl get clusterissuers
+
+# Check certificate events
+echo -e "\n📝 Recent Certificate Events:"
+kubectl get events --all-namespaces | grep -i certificate | head -10
+
+echo -e "\n✅ Certificate manager check completed!"
+```
+
+### 9. Rate Limiting Test Script
+```bash
+#!/bin/bash
+# rate-limit-test.sh
+# Usage: ./rate-limit-test.sh [url] [rate] [duration]
+
+URL=${1:-"https://your-domain.com/"}
+RATE=${2:-10}  # requests per second
+DURATION=${3:-60}  # seconds
+
+echo "🚦 Rate Limiting Test"
+echo "URL: $URL"
+echo "Rate: $RATE requests/second"
+echo "Duration: $DURATION seconds"
+echo "=========================================="
+
+# Calculate total requests
+TOTAL_REQUESTS=$((RATE * DURATION))
+INTERVAL=$(echo "scale=3; 1/$RATE" | bc)
+
+echo "📊 Test Parameters:"
+echo "Total requests: $TOTAL_REQUESTS"
+echo "Interval: ${INTERVAL}s between requests"
+
+# Run test
+echo -e "\n🔄 Running rate limit test..."
+for i in $(seq 1 $TOTAL_REQUESTS); do
+    RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" $URL)
+    echo "Request $i: HTTP $RESPONSE"
+    
+    if [ "$RESPONSE" = "429" ]; then
+        echo "🚨 Rate limit hit at request $i"
+        break
+    fi
+    
+    sleep $INTERVAL
+done
+
+echo -e "\n✅ Rate limiting test completed!"
+```
+
+### 10. Backup and Restore Script
+```bash
+#!/bin/bash
+# backup-restore.sh
+# Usage: ./backup-restore.sh [backup|restore] [backup-name]
+
+ACTION=${1:-"backup"}
+BACKUP_NAME=${2:-"nginx-ingress-$(date +%Y%m%d-%H%M%S)"}
+
+echo "💾 NGINX Ingress Controller Backup/Restore"
+echo "Action: $ACTION"
+echo "Backup Name: $BACKUP_NAME"
+echo "=========================================="
+
+if [ "$ACTION" = "backup" ]; then
+    echo "📦 Creating backup..."
+    
+    # Create backup directory
+    mkdir -p backups/$BACKUP_NAME
+    
+    # Backup ConfigMaps
+    kubectl get configmap -n nginx-ingress -o yaml > backups/$BACKUP_NAME/configmaps.yaml
+    
+    # Backup Secrets
+    kubectl get secret -n nginx-ingress -o yaml > backups/$BACKUP_NAME/secrets.yaml
+    
+    # Backup Ingress resources
+    kubectl get ingress --all-namespaces -o yaml > backups/$BACKUP_NAME/ingresses.yaml
+    
+    # Backup VirtualServer resources
+    kubectl get virtualserver --all-namespaces -o yaml > backups/$BACKUP_NAME/virtualservers.yaml
+    
+    # Backup TransportServer resources
+    kubectl get transportserver --all-namespaces -o yaml > backups/$BACKUP_NAME/transportservers.yaml
+    
+    echo "✅ Backup created: backups/$BACKUP_NAME"
+    
+elif [ "$ACTION" = "restore" ]; then
+    echo "🔄 Restoring from backup..."
+    
+    if [ ! -d "backups/$BACKUP_NAME" ]; then
+        echo "❌ Backup not found: backups/$BACKUP_NAME"
+        exit 1
+    fi
+    
+    # Restore resources
+    kubectl apply -f backups/$BACKUP_NAME/configmaps.yaml
+    kubectl apply -f backups/$BACKUP_NAME/secrets.yaml
+    kubectl apply -f backups/$BACKUP_NAME/ingresses.yaml
+    kubectl apply -f backups/$BACKUP_NAME/virtualservers.yaml
+    kubectl apply -f backups/$BACKUP_NAME/transportservers.yaml
+    
+    echo "✅ Restore completed from: backups/$BACKUP_NAME"
+else
+    echo "❌ Invalid action. Use 'backup' or 'restore'"
+    exit 1
+fi
+```
+
+## 📋 Usage Instructions
+
+### Make Scripts Executable
+```bash
+chmod +x *.sh
+```
+
+### Create Script Directory
+```bash
+mkdir -p scripts
+cp *.sh scripts/
+```
+
+### Run Scripts
+```bash
+# Quick health check
+./scripts/quick-health-check.sh
+
+# SSL certificate check
+./scripts/ssl-cert-checker.sh your-domain.com
+
+# Load balancer test
+./scripts/load-balancer-test.sh https://your-domain.com/ 50
+
+# Performance monitoring
+./scripts/performance-monitor.sh nginx-ingress 600
+
+# Log analysis
+./scripts/log-analyzer.sh nginx-ingress "" 2
+
+# Connection test
+./scripts/connection-test.sh my-service default 8080
+
+# Certificate manager check
+./scripts/cert-manager-check.sh cert-manager
+
+# Rate limiting test
+./scripts/rate-limit-test.sh https://your-domain.com/ 5 30
+
+# Backup
+./scripts/backup-restore.sh backup my-backup
+
+# Restore
+./scripts/backup-restore.sh restore my-backup
+```
+
+## 🔧 Customization
+
+### Environment Variables
+```bash
+# Set default values
+export DEFAULT_NAMESPACE="nginx-ingress"
+export DEFAULT_DOMAIN="your-domain.com"
+export DEFAULT_SERVICE="your-service"
+```
+
+### Custom Functions
+```bash
+# Add to your .bashrc or .zshrc
+function nginx-health() {
+    ./scripts/quick-health-check.sh "$@"
+}
+
+function nginx-ssl() {
+    ./scripts/ssl-cert-checker.sh "$@"
+}
+
+function nginx-logs() {
+    ./scripts/log-analyzer.sh "$@"
+}
+```
+
+## 📊 Script Output Examples
+
+### Health Check Output
+```
+🔍 Quick Health Check for NGINX Ingress Controller
+Namespace: nginx-ingress
+Pod: nginx-ingress-7d8f9c6b4-x2y3z
+==========================================
+📊 Pod Status:
+NAME                     READY   STATUS    RESTARTS   AGE
+nginx-ingress-7d8f9c6b4-x2y3z   1/1     Running   0          2d
+
+📋 Recent Events:
+LAST SEEN   TYPE     REASON              OBJECT
+2m          Normal   Scheduled           pod/nginx-ingress-7d8f9c6b4-x2y3z
+
+⚙️ NGINX Configuration:
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+
+🔄 NGINX Processes:
+root         1  0.0  0.0   1232   456 ?        Ss   00:00   0:00 nginx: master process
+nginx       12  0.0  0.0   1232   456 ?        S    00:00   0:00 nginx: worker process
+
+💾 Resource Usage:
+NAME                     CPU(cores)   MEMORY(bytes)
+nginx-ingress-7d8f9c6b4-x2y3z   5m           45Mi
+
+📝 Recent Error Logs:
+2024/01/15 10:30:15 [error] 12#12: *1234 upstream timed out
+
+✅ Health check completed!
+```
+
+### SSL Check Output
+```
+🔒 SSL Certificate Check for your-domain.com:443
+==========================================
+📋 Certificate Details:
+notBefore=Jan 15 00:00:00 2024 GMT
+notAfter=Apr 15 23:59:59 2024 GMT
+
+🔗 Certificate Chain:
+                DNS:your-domain.com, DNS:www.your-domain.com
+
+🔐 TLS Version:
+TLSv1.2 (IN), TLSv1.3 (IN)
+
+🔐 Cipher Suites:
+New, TLSv1.2, Cipher is ECDHE-RSA-AES256-GCM-SHA384
+
+✅ SSL check completed!
+```
+
+These scripts provide comprehensive troubleshooting capabilities for NGINX Ingress Controller issues, making it easier to diagnose and resolve problems quickly.
